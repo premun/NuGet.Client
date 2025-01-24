@@ -771,9 +771,8 @@ namespace NuGet.Commands
         /// This happens when the chosen item's type constraint is broader (e.g. PackageProjectExternal) than the current item's type constraint (e.g. Package).
         /// </remarks>
         /// <returns></returns>
-        private static bool ShouldEvictOnTypeConstraint(DependencyGraphItem currentDependencyGraphItem, ResolvedDependencyGraphItem resolvedDependencyGraphItem)
+        private static bool ShouldEvictOnTypeConstraint(LibraryDependency currentLibraryDependency, LibraryRangeIndex currentLibraryRangeIndex, ResolvedDependencyGraphItem resolvedDependencyGraphItem)
         {
-            LibraryDependency currentLibraryDependency = currentDependencyGraphItem.LibraryDependency;
             LibraryDependency chosenLibraryDependency = resolvedDependencyGraphItem.LibraryDependency;
 
             // We should evict the chosen item if it is a package but the current item is a project since projects should be chosen over packages
@@ -783,7 +782,6 @@ namespace NuGet.Commands
                 return true;
             }
 
-            LibraryRangeIndex currentLibraryRangeIndex = currentDependencyGraphItem.LibraryRangeIndex;
             LibraryRangeIndex chosenLibraryRangeIndex = resolvedDependencyGraphItem.LibraryRangeIndex;
 
             // Do not evict if:
@@ -991,7 +989,7 @@ namespace NuGet.Commands
                     }
 
                     // Determine if the chosen item should be evicted based on type constraint.
-                    bool evictOnTypeConstraint = ShouldEvictOnTypeConstraint(currentDependencyGraphItem, chosenResolvedItem);
+                    bool evictOnTypeConstraint = ShouldEvictOnTypeConstraint(currentDependencyGraphItem.LibraryDependency, currentDependencyGraphItem.LibraryRangeIndex, chosenResolvedItem);
 
                     VersionRange currentVersionRange = currentDependencyGraphItem.LibraryDependency.LibraryRange.VersionRange ?? VersionRange.All;
                     VersionRange chosenVersionRange = chosenResolvedItem.LibraryDependency.LibraryRange.VersionRange ?? VersionRange.All;
@@ -1321,6 +1319,12 @@ namespace NuGet.Commands
 
                     LibraryRangeIndex childLibraryRangeIndex = chosenResolvedItem.GetRangeIndexForDependencyAt(i);
 
+                    // Determine if a dependency has already been resolved to the graph and if this one can be skipped 
+                    if (ShouldSkipChildDependency(resolvedDependencyGraphItems, childDependency, childLibraryDependencyIndex, childLibraryRangeIndex))
+                    {
+                        continue;
+                    }
+
                     if (isCentrallyPinnedTransitiveDependency && !isRootPackageReference)
                     {
                         // If central transitive pinning is enabled the LibraryDependency must be recreated as not to mutate the in-memory copy
@@ -1358,6 +1362,33 @@ namespace NuGet.Commands
             }
 
             return resolvedDependencyGraphItems;
+        }
+
+        private static bool ShouldSkipChildDependency(Dictionary<LibraryDependencyIndex, ResolvedDependencyGraphItem> resolvedDependencyGraphItems, LibraryDependency childDependency, LibraryDependencyIndex childLibraryDependencyIndex, LibraryRangeIndex childLibraryRangeIndex)
+        {
+            if (!resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem)
+                                    || childResolvedDependencyGraphItem.LibraryRangeIndex != childLibraryRangeIndex)
+            {
+                // Either the dependency has not already been resolved or one was resolved with a different version, so process this dependency
+                return false;
+            }
+
+            if (childResolvedDependencyGraphItem.IsRootPackageReference)
+            {
+                // If the resolved dependency is a direct dependency, skip this dependency since it cannot override it
+                return true;
+            }
+
+            if (childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject
+                && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package))
+            {
+                // Skip this dependency if the resolved dependency is a project reference and the current dependency is a package reference
+                return true;
+            }
+
+            // Skip this dependency if the current dependency should be evicted based on differing type constraint (ie PackageProjectExternal vs Package)
+            return !ShouldEvictOnTypeConstraint(childDependency, childLibraryRangeIndex, childResolvedDependencyGraphItem);
+
         }
 
         /// <summary>
