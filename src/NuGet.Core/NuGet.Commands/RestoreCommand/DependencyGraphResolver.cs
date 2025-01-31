@@ -1386,8 +1386,7 @@ namespace NuGet.Commands
                 return true;
             }
 
-            // Skip this dependency if the current dependency should be evicted based on differing type constraint (ie PackageProjectExternal vs Package)
-            return !ShouldEvictOnTypeConstraint(childDependency, childLibraryRangeIndex, childResolvedDependencyGraphItem);
+            return false;
 
         }
 
