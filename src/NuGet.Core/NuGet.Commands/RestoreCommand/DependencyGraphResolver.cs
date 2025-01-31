@@ -1369,25 +1369,17 @@ namespace NuGet.Commands
             if (!resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem)
                                     || childResolvedDependencyGraphItem.LibraryRangeIndex != childLibraryRangeIndex)
             {
-                // Either the dependency has not already been resolved or one was resolved with a different version, so process this dependency
+                // Either the dependency has not already been resolved or one was resolved with a different version
                 return false;
             }
 
-            if (childResolvedDependencyGraphItem.IsRootPackageReference)
-            {
-                // If the resolved dependency is a direct dependency, skip this dependency since it cannot override it
-                return true;
-            }
-
-            if (childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject
-                && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package))
-            {
-                // Skip this dependency if the resolved dependency is a project reference and the current dependency is a package reference
-                return true;
-            }
-
-            return false;
-
+            // Skip child dependency if:
+            // 1. The resolved one is a root package reference -or-
+            // 2. The resolved one is a project reference and the current one is a package reference -or-
+            // 3. The resolved one has the same type constraint as the current one
+            return childResolvedDependencyGraphItem.IsRootPackageReference
+                || childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package)
+                || childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == childDependency.LibraryRange.TypeConstraint;
         }
 
         /// <summary>
