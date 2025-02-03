@@ -1301,13 +1301,13 @@ namespace NuGet.Commands
                         continue;
                     }
 
-                    if (resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem))
-                    {
-                        if (childResolvedDependencyGraphItem.LibraryRangeIndex == childLibraryRangeIndex)
-                        {
-                            continue;
-                        }
-                    }
+                    //if (!currentDependencyGraphItem.IsCentrallyPinnedTransitivePackage && resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem))
+                    //{
+                    //    if (childResolvedDependencyGraphItem.LibraryRangeIndex == childLibraryRangeIndex)
+                    //    {
+                    //        continue;
+                    //    }
+                    //}
 
                     HashSet<LibraryDependency>? runtimeDependencies = default;
 
