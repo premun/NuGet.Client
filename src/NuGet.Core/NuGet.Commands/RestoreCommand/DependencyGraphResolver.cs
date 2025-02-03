@@ -1303,12 +1303,7 @@ namespace NuGet.Commands
 
                     if (resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem))
                     {
-                        if (childResolvedDependencyGraphItem.LibraryRangeIndex == childLibraryRangeIndex || childResolvedDependencyGraphItem.IsRootPackageReference)
-                        {
-                            continue;
-                        }
-
-                        if (childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package))
+                        if (childResolvedDependencyGraphItem.LibraryRangeIndex == childLibraryRangeIndex)
                         {
                             continue;
                         }
