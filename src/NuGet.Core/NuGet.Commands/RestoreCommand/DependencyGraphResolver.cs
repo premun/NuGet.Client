@@ -1286,16 +1286,7 @@ namespace NuGet.Commands
                 {
                     LibraryDependency childDependency = chosenResolvedItem.Item.Data.Dependencies[i];
                     LibraryDependencyIndex childLibraryDependencyIndex = chosenResolvedItem.GetDependencyIndexForDependencyAt(i);
-
-                    HashSet<LibraryDependency>? runtimeDependencies = default;
-
-                    // Evaluate the runtime dependencies if any
-                    if (EvaluateRuntimeDependencies(ref childDependency, runtimeGraph, pair.RuntimeIdentifier, ref runtimeDependencies))
-                    {
-                        // EvaluateRuntimeDependencies() returns true if the version of the dependency was changed, which also changes the LibraryRangeIndex so that must be updated in the chosen item's array of library range indices.
-                        chosenResolvedItem.SetRangeIndexForDependencyAt(i, _indexingTable.Index(childDependency.LibraryRange));
-                    }
-
+                    LibraryRangeIndex childLibraryRangeIndex = chosenResolvedItem.GetRangeIndexForDependencyAt(i);
                     bool isPackage = childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package);
                     bool isRootPackageReference = (currentDependencyGraphItem.LibraryDependencyIndex == LibraryDependencyIndex.Project) && isPackage;
 
@@ -1310,20 +1301,34 @@ namespace NuGet.Commands
                         continue;
                     }
 
+                    if (resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem))
+                    {
+                        if (childResolvedDependencyGraphItem.LibraryRangeIndex == childLibraryRangeIndex || childResolvedDependencyGraphItem.IsRootPackageReference)
+                        {
+                            continue;
+                        }
+
+                        if (childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package))
+                        {
+                            continue;
+                        }
+                    }
+
+                    HashSet<LibraryDependency>? runtimeDependencies = default;
+
+                    // Evaluate the runtime dependencies if any
+                    if (EvaluateRuntimeDependencies(ref childDependency, runtimeGraph, pair.RuntimeIdentifier, ref runtimeDependencies))
+                    {
+                        // EvaluateRuntimeDependencies() returns true if the version of the dependency was changed, which also changes the LibraryRangeIndex so that must be updated in the chosen item's array of library range indices.
+                        chosenResolvedItem.SetRangeIndexForDependencyAt(i, _indexingTable.Index(childDependency.LibraryRange));
+                    }
+
                     VersionRange? pinnedVersionRange = null;
 
                     // Determine if the package is transitively pinned
                     bool isCentrallyPinnedTransitiveDependency = isCentralPackageTransitivePinningEnabled
                         && isPackage
                         && pinnedPackageVersions?.TryGetValue(childLibraryDependencyIndex, out pinnedVersionRange) == true;
-
-                    LibraryRangeIndex childLibraryRangeIndex = chosenResolvedItem.GetRangeIndexForDependencyAt(i);
-
-                    // Determine if a dependency has already been resolved to the graph and if this one can be skipped 
-                    if (ShouldSkipChildDependency(resolvedDependencyGraphItems, childDependency, childLibraryDependencyIndex, childLibraryRangeIndex))
-                    {
-                        continue;
-                    }
 
                     if (isCentrallyPinnedTransitiveDependency && !isRootPackageReference)
                     {
@@ -1362,24 +1367,6 @@ namespace NuGet.Commands
             }
 
             return resolvedDependencyGraphItems;
-        }
-
-        private static bool ShouldSkipChildDependency(Dictionary<LibraryDependencyIndex, ResolvedDependencyGraphItem> resolvedDependencyGraphItems, LibraryDependency childDependency, LibraryDependencyIndex childLibraryDependencyIndex, LibraryRangeIndex childLibraryRangeIndex)
-        {
-            if (!resolvedDependencyGraphItems.TryGetValue(childLibraryDependencyIndex, out ResolvedDependencyGraphItem? childResolvedDependencyGraphItem)
-                                    || childResolvedDependencyGraphItem.LibraryRangeIndex != childLibraryRangeIndex)
-            {
-                // Either the dependency has not already been resolved or one was resolved with a different version
-                return false;
-            }
-
-            // Skip child dependency if:
-            // 1. The resolved one is a root package reference -or-
-            // 2. The resolved one is a project reference and the current one is a package reference -or-
-            // 3. The resolved one has the same type constraint as the current one
-            return childResolvedDependencyGraphItem.IsRootPackageReference
-                || childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == LibraryDependencyTarget.ExternalProject && childDependency.LibraryRange.TypeConstraintAllows(LibraryDependencyTarget.Package)
-                || childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.TypeConstraint == childDependency.LibraryRange.TypeConstraint;
         }
 
         /// <summary>
